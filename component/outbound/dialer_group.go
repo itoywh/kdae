@@ -653,24 +653,24 @@ func (g *DialerGroup) _select(networkType *dialer.NetworkType, state *dialerGrou
 					selected := preferAlternateSelectionNetworkType(d, nt)
 					return d, 0, selected, nil
 				}
-		case consts.DialerSelectionPolicy_MinLastLatency,
-			consts.DialerSelectionPolicy_MinAverage10Latencies,
-			consts.DialerSelectionPolicy_MinMovingAverageLatencies:
-			d, lat := a.GetMinLatency(excluded)
-			if d != nil {
-				g.logFixedFallbackDetail(fixed, d, nt, lat)
-				selected := preferAlternateSelectionNetworkType(d, nt)
-				return d, lat, selected, nil
+			case consts.DialerSelectionPolicy_MinLastLatency,
+				consts.DialerSelectionPolicy_MinAverage10Latencies,
+				consts.DialerSelectionPolicy_MinMovingAverageLatencies:
+				d, lat := a.GetMinLatency(excluded)
+				if d != nil {
+					g.logFixedFallbackDetail(fixed, d, nt, lat)
+					selected := preferAlternateSelectionNetworkType(d, nt)
+					return d, lat, selected, nil
+				}
+			default:
+				// M3: defensive fallback. FallbackPolicy should only ever be
+				// one of the four handled cases above (the parser rejects
+				// fixed/fixed_fallback and unknown names), but guard against a
+				// zero value or a future policy constant so a misconfigured
+				// FallbackPolicy is surfaced instead of silently returning
+				// ErrNoAliveDialer.
+				g.log.Warnf("fixed_fallback: FallbackPolicy %q is not handled by doFallback; no fallback dialer selected", policy.FallbackPolicy)
 			}
-		default:
-			// M3: defensive fallback. FallbackPolicy should only ever be
-			// one of the four handled cases above (the parser rejects
-			// fixed/fixed_fallback and unknown names), but guard against a
-			// zero value or a future policy constant so a misconfigured
-			// FallbackPolicy is surfaced instead of silently returning
-			// ErrNoAliveDialer.
-			g.log.Warnf("fixed_fallback: FallbackPolicy %q is not handled by doFallback; no fallback dialer selected", policy.FallbackPolicy)
-		}
 		}
 		return nil, time.Hour, nil, ErrNoAliveDialer
 

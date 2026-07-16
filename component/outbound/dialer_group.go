@@ -105,6 +105,19 @@ func NewDialerGroup(
 	// one-shot guard) will be required to avoid duplicate goroutines.
 	if p.Policy == consts.DialerSelectionPolicy_FixedWithFallback &&
 		p.FixedIndex >= 0 && p.FixedIndex < len(dialers) {
+		// H1: if health check is disabled (check_interval==0) but the policy
+		// asks for retries, the background retry probes are silently dropped
+		// (aliveBackground returns early when CheckInterval==0), so timeout/
+		// retries never take effect — the node falls back permanently on the
+		// first failure. Warn loudly at startup so the misconfiguration is
+		// visible (the generic "Health check is DISABLED" warning does not
+		// mention this policy-specific consequence).
+		if p.FixedFallbackRetries > 0 && group.cachedMinCheckInterval == 0 {
+			log.Warnf("fixed_fallback: retries=%d but check_interval=0 (health check disabled). "+
+				"Retry probes will be silently dropped; the fixed node will fallback permanently on first failure. "+
+				"Set check_interval>0 to enable retry probes, or set retries=0 to skip retry explicitly.",
+				p.FixedFallbackRetries)
+		}
 		fixed := dialers[p.FixedIndex]
 		if fixed != nil {
 			fixed.RegisterAliveTransitionCallback(func(nt *dialer.NetworkType, alive bool) {

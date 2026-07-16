@@ -51,6 +51,14 @@ type DialerGroup struct {
 	// Stopped when the node recovers (MustGetAlive=true).
 	fixedFallbackRunning atomic.Bool
 
+	// fixedFallbackNt is the networkType the background retry goroutine is
+	// currently probing. Set when the goroutine starts, cleared when it exits.
+	// Keyed so a select on a different networkType (partial node death, e.g.
+	// TCP alive while UDP dead) does not reset this networkType's retry state,
+	// which would otherwise cause log jitter and prevent the goroutine from
+	// settling (see M1 review).
+	fixedFallbackNt *dialer.NetworkType
+
 	// fixed_fallback log rate limit
 	fixedFallbackLastLogMark atomic.Int64
 
@@ -570,17 +578,24 @@ func (g *DialerGroup) _select(networkType *dialer.NetworkType, state *dialerGrou
 
 			// Try fixed dialer first
 			if fixed != nil && fixed.AliveForRetry(nt) {
-				// Node is alive → reset retry state and use it
 				g.fixedFallbackMu.Lock()
-				wasDead := g.fixedFallbackDeadSince != 0
-				g.fixedFallbackDeadSince = 0
-				g.fixedFallbackRetryCount = 0
-				g.fixedFallbackLastRetryNano = 0
-				g.fixedFallbackDone = false
-				g.fixedFallbackMu.Unlock()
-				if wasDead {
-					g.logFixedFallback(0, fixed, nt)
+				// Only a select on the networkType the retry goroutine is
+				// tracking may clear the dead/retry state. A different
+				// networkType (e.g. TCP alive while UDP is dead) must not
+				// reset UDP's retry, otherwise partial death causes log
+				// jitter and the goroutine never settles (see M1 review).
+				if g.fixedFallbackNt == nil || nt.Index() == g.fixedFallbackNt.Index() {
+					// Node is alive → reset retry state and use it
+					wasDead := g.fixedFallbackDeadSince != 0
+					g.fixedFallbackDeadSince = 0
+					g.fixedFallbackRetryCount = 0
+					g.fixedFallbackLastRetryNano = 0
+					g.fixedFallbackDone = false
+					if wasDead {
+						g.logFixedFallback(0, fixed, nt)
+					}
 				}
+				g.fixedFallbackMu.Unlock()
 				selected := preferAlternateSelectionNetworkType(fixed, nt)
 				return fixed, 0, selected, nil
 			}
@@ -860,6 +875,17 @@ func (g *DialerGroup) resetFixedFallback() {
 // and after maxRetries, marks the node for fallback.
 func (g *DialerGroup) runFixedFallbackRetry(fixed *dialer.Dialer, policy DialerSelectionPolicy, nt *dialer.NetworkType) {
 	defer g.fixedFallbackRunning.Store(false)
+	// Track which networkType this goroutine is probing so a select on a
+	// different networkType (partial node death, e.g. TCP alive / UDP dead)
+	// does not reset this networkType's retry state (see M1 review).
+	defer func() {
+		g.fixedFallbackMu.Lock()
+		g.fixedFallbackNt = nil
+		g.fixedFallbackMu.Unlock()
+	}()
+	g.fixedFallbackMu.Lock()
+	g.fixedFallbackNt = nt
+	g.fixedFallbackMu.Unlock()
 
 	// retries <= 0: give up immediately, no ticker needed.
 	// Node stays marked as done until health check recovers it.

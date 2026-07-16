@@ -327,6 +327,14 @@ func (d *Dialer) CloneWithGlobalOptionContext(ctx context.Context, option *Globa
 	return clone
 }
 
+// Done returns a channel that is closed when the dialer is shut down
+// (via Close or a reload that replaces it). It lets callers outside the
+// dialer package observe cancellation without reaching into the unexported
+// ctx field.
+func (d *Dialer) Done() <-chan struct{} {
+	return d.ctx.Done()
+}
+
 // RetireForEstablishedFlows releases control-plane health state while keeping
 // the underlying transport available to already-established connections.
 func (d *Dialer) RetireForEstablishedFlows() {

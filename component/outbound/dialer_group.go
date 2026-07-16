@@ -891,7 +891,13 @@ func (g *DialerGroup) runFixedFallbackRetry(fixed *dialer.Dialer, policy DialerS
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
+		select {
+		case <-ticker.C:
+		case <-fixed.Done():
+			// dae is shutting down or the dialer was replaced by a reload;
+			// stop probing instead of blocking until retries are exhausted.
+			return
+		}
 
 		// Check if node has recovered
 		if fixed.AliveForRetry(nt) {

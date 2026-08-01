@@ -749,6 +749,16 @@ func newControlPlaneWithContextOptions(
 	if global.AllowInsecure {
 		log.Warnln("AllowInsecure is enabled, but it is not recommended. Please make sure you have to turn it on.")
 	}
+	// Warn about health-check configuration that would silently disable probing.
+	// check_interval=0 disables ALL probing (including any configured URLs),
+	// so it must be reported even when tcp_check_url/udp_check_dns are set.
+	if global.CheckInterval == 0 {
+		log.Warnln("Health check is DISABLED: check_interval is 0. Nodes will NOT be probed even if " +
+			"tcp_check_url/udp_check_dns are configured. Set check_interval (>0) to enable health checks.")
+	} else if len(global.TcpCheckUrl) == 0 && len(global.UdpCheckDns) == 0 {
+		log.Warnln("Health check has no probe target: tcp_check_url and udp_check_dns are both empty. " +
+			"Nodes will not be probed. Configure at least one to enable health checks.")
+	}
 	locationFinder := assets.NewLocationFinder(externGeoDataDirs)
 	option := dialer.NewGlobalOption(global, log)
 	option.DaeDNS, err = daedns.NewWithOption(log, global, dnsConfig, &daedns.NewOption{LocationFinder: locationFinder})

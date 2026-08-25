@@ -6,7 +6,7 @@ name: sync-kdae
 
 on:
   schedule:
-    - cron: '23 */1 * * *'   # 每小时第 23 分钟, 错开上游 CI 高峰
+    - cron: '23,53 * * * *'   # 每 30 分钟第 23/53 分钟, 错开上游 CI 高峰
   workflow_dispatch:         # 支持手动触发
 
 permissions:

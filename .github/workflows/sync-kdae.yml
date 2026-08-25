@@ -62,7 +62,7 @@ jobs:
           done
           ls -lh dist/
 
-      - name: 发布 Release (幂等: 同 commit 已存在则跳过)
+      - name: "发布 Release (幂等: 同 commit 已存在则跳过)"
         id: release
         env:
           RUN_ID: ${{ steps.run.outputs.run_id }}

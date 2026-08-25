@@ -90,6 +90,7 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
           if gh release view "$tag" --repo "$MIRROR" >/dev/null 2>&1; then
             echo "Release $tag 已存在, 跳过发布"
+            echo "published=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           gh release create "$tag" dist/*.zip \
@@ -97,6 +98,7 @@ jobs:
             --title "kdae mirror ${sha:0:8}" \
             --notes "来源: olicesx/dae@${sha:0:12} (run $RUN_ID)"
           echo "已发布: $tag"
+          echo "published=true" >> $GITHUB_OUTPUT
 
       - name: 生成并推送 latest.json
         if: steps.check.outputs.skip != 'true'
@@ -139,6 +141,28 @@ jobs:
             git commit -m "update latest.json ($tag)"
             git push
           fi
+
+      - name: Server 酱通知 (仅新版本发布时)
+        if: steps.check.outputs.skip != 'true' && steps.release.outputs.published == 'true'
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          tag="${TAG}"
+          title="kdae 新版本已镜像: ${sha:0:8}"
+          desp=$(cat <<EOF
+          上游: olicesx/dae@${sha:0:12} (run $RUN_ID)
+          Release: https://github.com/$MIRROR/releases/tag/$tag
+          镜像时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          EOF
+          )
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "https://sctapi.ftqq.com/${{ secrets.SERVERCHAN_SENDKEY }}.send" \
+            --data-urlencode "title=${title}" \
+            --data-urlencode "desp=${desp}")
+          echo "Server酱推送 HTTP $code"
+          [ "$code" = "200" ] || exit 1
 
       - name: 清理旧 Release (仅保留最近 5 个)
         run: |

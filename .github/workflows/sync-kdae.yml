@@ -1,3 +1,4 @@
+# touch 20260825T1735: force workflow re-index
 # sync-kdae.yml — 定时从 olicesx/dae(kdae分支) CI artifact 镜像到本仓库 Release
 # 认证: 优先 secrets.KDAE_MIRROR_PAT(推荐, fine-grained token, 仅 Actions:read + public_repo);
 #       未配置时回退 secrets.GITHUB_TOKEN(跨仓库下载可能 401, 建议配 PAT)

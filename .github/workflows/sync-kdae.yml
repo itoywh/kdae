@@ -158,12 +158,16 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          cm=$(gh api "repos/$UPSTREAM/commits/$sha" --jq '.commit.message' | sed 's/\r$//')
           tag="${TAG}"
           title="kdae 新版本已镜像: ${sha:0:8}"
           desp=$(cat <<EOF
           上游: olicesx/dae@${sha:0:12} (run $RUN_ID)
           Release: https://github.com/$MIRROR/releases/tag/$tag
           镜像时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+
+          ### Commit: ${sha:0:12}
+          ${cm}
           EOF
           )
           code=$(curl -sS -o /dev/null -w '%{http_code}' \

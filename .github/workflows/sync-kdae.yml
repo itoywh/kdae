@@ -49,7 +49,7 @@ jobs:
           RUN_ID: ${{ steps.run.outputs.run_id }}
         run: |
           mkdir -p dist
-          for art in dae-linux-x86_64_v2_sse.zip dae-linux-x86_64.zip dae-linux-arm64.zip; do
+          for art in dae-linux-x86_64_v2_sse.zip dae-linux-x86_64.zip dae-linux-x86_64_v3_avx2.zip dae-linux-arm64.zip; do
             meta=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID/artifacts" \
               --jq ".artifacts[] | select(.name==\"$art\" and .expired==false) | {id, digest}" | head -1)
             if [ -z "$meta" ]; then echo "跳过(不存在或已过期): $art"; continue; fi

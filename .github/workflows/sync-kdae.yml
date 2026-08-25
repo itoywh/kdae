@@ -51,7 +51,7 @@ jobs:
           mkdir -p dist
           for art in dae-linux-x86_64_v2_sse.zip dae-linux-x86_64.zip dae-linux-arm64.zip; do
             meta=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID/artifacts" \
-              --jq --arg n "$art" '.artifacts[] | select(.name==$n and .expired==false) | {id, digest}' | head -1)
+              --jq ".artifacts[] | select(.name==\"$art\" and .expired==false) | {id, digest}" | head -1)
             if [ -z "$meta" ]; then echo "跳过(不存在或已过期): $art"; continue; fi
             art_id=$(echo "$meta" | jq -r .id)
             digest=$(echo "$meta" | jq -r .digest | sed 's/^sha256://')

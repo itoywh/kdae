@@ -43,8 +43,25 @@ jobs:
           echo "run_id=$run_id" >> $GITHUB_OUTPUT
           echo "最新 run: $run_id"
 
+      - name: 检查是否有新构建 (no-op 短路)
+        id: check
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+          cur=$(curl -sS "https://raw.githubusercontent.com/$MIRROR/kdae/latest.json" | jq -r .source_sha)
+          if [ "$cur" = "$sha" ]; then
+            echo "无新构建 (latest=$cur), 跳过同步"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "有新构建: $cur -> $sha"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 下载并校验架构产物
         id: dl
+        if: steps.check.outputs.skip != 'true'
         env:
           RUN_ID: ${{ steps.run.outputs.run_id }}
         run: |
@@ -64,6 +81,7 @@ jobs:
 
       - name: "发布 Release (幂等: 同 commit 已存在则跳过)"
         id: release
+        if: steps.check.outputs.skip != 'true'
         env:
           RUN_ID: ${{ steps.run.outputs.run_id }}
         run: |
@@ -81,6 +99,7 @@ jobs:
           echo "已发布: $tag"
 
       - name: 生成并推送 latest.json
+        if: steps.check.outputs.skip != 'true'
         env:
           RUN_ID: ${{ steps.run.outputs.run_id }}
           TAG: ${{ steps.release.outputs.tag }}

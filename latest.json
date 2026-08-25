@@ -5,7 +5,7 @@
   "source_sha_short": "502d976ee635",
   "run_id": 32831266222,
   "release_tag": "kdae-502d976e-20260825",
-  "updated_at": "2026-08-25T09:59:42Z",
+  "updated_at": "2026-08-25T10:19:31Z",
   "artifacts": {
     "dae-linux-x86_64_v2_sse.zip": {
       "size": 18528260,
@@ -14,6 +14,10 @@
     "dae-linux-x86_64.zip": {
       "size": 18533599,
       "sha256": "5d436186c667611462ecf07ae68266b3a5702c88276f65fa3878d936e0e17d86"
+    },
+    "dae-linux-x86_64_v3_avx2.zip": {
+      "size": 18516813,
+      "sha256": "a62252fc1341582a89802e2b0d0d8de59db5e092dfd08ff9e874d0a2e3edc489"
     },
     "dae-linux-arm64.zip": {
       "size": 17298673,

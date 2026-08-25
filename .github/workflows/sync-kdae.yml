@@ -93,10 +93,19 @@ jobs:
             echo "published=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+          # 取上游 commit 完整描述(标题+正文)
+          cm=$(gh api "repos/$UPSTREAM/commits/$sha" --jq '.commit.message' | sed 's/\r$//')
+          {
+            echo "来源: $UPSTREAM@${sha:0:12} (run $RUN_ID)"
+            echo ""
+            echo "### Commit: ${sha:0:12}"
+            echo ""
+            echo "$cm"
+          } > notes.md
           gh release create "$tag" dist/*.zip \
             --repo "$MIRROR" \
             --title "kdae mirror ${sha:0:8}" \
-            --notes "来源: olicesx/dae@${sha:0:12} (run $RUN_ID)"
+            --notes-file notes.md
           echo "已发布: $tag"
           echo "published=true" >> $GITHUB_OUTPUT
 

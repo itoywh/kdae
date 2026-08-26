@@ -1,27 +1,27 @@
 {
   "source_repo": "olicesx/dae",
   "source_branch": "kdae",
-  "source_sha": "04137361d599099d9b1aa390785137adec72e372",
-  "source_sha_short": "04137361d599",
-  "run_id": 32952984988,
-  "release_tag": "kdae-04137361-20260826",
-  "updated_at": "2026-08-26T10:02:17Z",
+  "source_sha": "75cfea671a479a2080dd73bda43dd259e43cecb1",
+  "source_sha_short": "75cfea671a47",
+  "run_id": 32994449890,
+  "release_tag": "kdae-75cfea67-20260826",
+  "updated_at": "2026-08-26T18:08:47Z",
   "artifacts": {
     "dae-linux-x86_64_v2_sse.zip": {
-      "size": 18500889,
-      "sha256": "c099444e34d87cdf7adf74c1ce36aad77b41b36cf5b9cc534a8b8e45df398c18"
+      "size": 18501796,
+      "sha256": "273d277cd9e31e4a4318b1b27d40f0d6779ef4f0f2c0ce1fd806aaed61de9586"
     },
     "dae-linux-x86_64.zip": {
-      "size": 18504789,
-      "sha256": "0cf768fc42ead6c75695b0bff2d1c3e8b27fbfd4ed8cfc08bd443a9aae68fbc6"
+      "size": 18507674,
+      "sha256": "1c920994d52610e4cc629b821c81c87eca5c43d1eb099a85beb613e384f9cc2e"
     },
     "dae-linux-x86_64_v3_avx2.zip": {
-      "size": 18490027,
-      "sha256": "4ed915dbc05b85513d89250c4ad4c457f9762a7cd9366c959dea18835d8d0f9b"
+      "size": 18492590,
+      "sha256": "23c88ad331a7e4fcb6f4d69e36a3df4cbec7588f5a0f17671f60949842009f34"
     },
     "dae-linux-arm64.zip": {
-      "size": 17276447,
-      "sha256": "422346187cc91bf5e31066d40bb172eaeea78d5144ddc50e368c0087f0b767aa"
+      "size": 17277582,
+      "sha256": "2c0027edb65c82329f5c152c87b207321df7d85110b4a8e2d241ae6ea3305467"
     }
   }
 }

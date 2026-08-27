@@ -7,7 +7,7 @@ name: kdae-notify
 
 on:
   schedule:
-    - cron: '23,53 * * * *'   # 每 30 分钟第 23/53 分钟, 错开上游 CI 高峰
+    - cron: '5,20,35,50 * * * *'   # 每 15 分钟, 错开整点(:00/15/30/45)高峰
   workflow_dispatch:         # 支持手动触发
 
 permissions:

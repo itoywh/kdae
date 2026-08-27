@@ -1,0 +1,104 @@
+# kdae-notify.yml — 定时轮询 olicesx/dae(kdae分支) 新构建，有新版则 Server 酱通知（不再镜像）
+# 认证: 优先 secrets.KDAE_MIRROR_PAT(推荐, fine-grained token, 仅 Actions:read + public_repo);
+#       未配置时回退 secrets.GITHUB_TOKEN
+# 去重: 仓库 kdae 分支 last-notified.json 记录上次已通知的 sha，推送成功后才更新
+# 通知内容: 上游 commit 页 + CI run 页链接
+name: kdae-notify
+
+on:
+  schedule:
+    - cron: '23,53 * * * *'   # 每 30 分钟第 23/53 分钟, 错开上游 CI 高峰
+  workflow_dispatch:         # 支持手动触发
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kdae-notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.KDAE_MIRROR_PAT }}
+      UPSTREAM: olicesx/dae
+      MIRROR: itoywh/kdae
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: kdae
+
+      - name: 选 token (PAT 优先, 回退 GITHUB_TOKEN)
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "GH_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          fi
+
+      - name: 定位 kdae 分支最新成功 Build (Main) run
+        id: run
+        run: |
+          run_id=$(gh api "repos/$UPSTREAM/actions/runs?branch=kdae&per_page=30" \
+            --jq '.workflow_runs[] | select(.name=="Build (Main)" and .conclusion=="success") | .id' | head -1)
+          if [ -z "$run_id" ]; then echo "未找到成功 Build (Main) run"; exit 1; fi
+          echo "run_id=$run_id" >> $GITHUB_OUTPUT
+          echo "最新 run: $run_id"
+
+      - name: 检查是否有新版本 (last-notified.json 去重)
+        id: check
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+          last=""
+          if [ -f last-notified.json ]; then
+            last=$(jq -r .source_sha last-notified.json)
+          fi
+          if [ "$last" = "$sha" ]; then
+            echo "无新版本 (已通知 $sha), 跳过"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "有新版本: ${last:-<none>} -> $sha"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Server 酱通知 + 记录 last-notified.json
+        if: steps.check.outputs.skip != 'true'
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          cm=$(gh api "repos/$UPSTREAM/commits/$sha" --jq '.commit.message' | sed 's/\r$//')
+          title="kdae 上游新版本: ${sha:0:8}"
+          desp=$(cat <<EOF
+          上游: olicesx/dae@${sha:0:12}
+          Commit: https://github.com/$UPSTREAM/commit/$sha
+          CI Run: https://github.com/$UPSTREAM/actions/runs/$RUN_ID
+          检测时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+
+          ### Commit: ${sha:0:12}
+          ${cm}
+          EOF
+          )
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "https://sctapi.ftqq.com/${{ secrets.SERVERCHAN_SENDKEY }}.send" \
+            --data-urlencode "title=${title}" \
+            --data-urlencode "desp=${desp}")
+          echo "Server酱推送 HTTP $code"
+          [ "$code" = "200" ] || exit 1
+          cat > last-notified.json <<EOF
+          {
+            "source_repo": "$UPSTREAM",
+            "source_branch": "kdae",
+            "source_sha": "$sha",
+            "run_id": $RUN_ID,
+            "notified_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          }
+          EOF
+          git config user.name "kdae-notify[bot]"
+          git config user.email "kdae-notify[bot]@users.noreply.github.com"
+          git add last-notified.json
+          git commit -m "notify kdae ${sha:0:12}"
+          git push

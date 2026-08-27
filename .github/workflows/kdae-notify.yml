@@ -1,3 +1,4 @@
+# touch 202608271920: force workflow re-index (schedule was not firing)
 # kdae-notify.yml — 定时轮询 olicesx/dae(kdae分支) 新构建，有新版则 Server 酱通知（不再镜像）
 # 认证: 优先 secrets.KDAE_MIRROR_PAT(推荐, fine-grained token, 仅 Actions:read + public_repo);
 #       未配置时回退 secrets.GITHUB_TOKEN

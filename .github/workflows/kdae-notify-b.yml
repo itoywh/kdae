@@ -1,23 +1,21 @@
-# touch 202608271920: force workflow re-index (schedule was not firing)
-# kdae-notify.yml — 定时轮询 olicesx/dae(kdae分支) 新构建，有新版则 Server 酱通知（不再镜像）
-# 认证: 优先 secrets.KDAE_MIRROR_PAT(推荐, fine-grained token, 仅 Actions:read + public_repo);
-#       未配置时回退 secrets.GITHUB_TOKEN
-# 去重: 仓库 kdae 分支 last-notified.json 记录上次已通知的 sha，推送成功后才更新
-# 通知内容: 上游 commit 页 + CI run 页链接
-name: kdae-notify
+# kdae-notify-b.yml — 冗余触发：与 kdae-notify.yml 逻辑相同，cron 错开 3 分钟
+# 目的: GitHub 对 fork 的 schedule 触发不可靠(可能长时间 drop)，双 workflow 任一个触发即可完成通知
+# 去重: 共用 last-notified.json（仓库 kdae 分支），谁先触发谁发通知，另一个自动 skip，不重复
+# 认证: 优先 secrets.KDAE_MIRROR_PAT；未配置时回退 secrets.GITHUB_TOKEN
+name: kdae-notify-b
 
 on:
   schedule:
-    - cron: '5,20,35,50 * * * *'   # 每 15 分钟, 错开整点(:00/15/30/45)高峰
+    - cron: '8,23,38,53 * * * *'   # 每 15 分钟, 与主 workflow 错开 3 分钟
   push:
     branches: [kdae]               # 仓库有活动时顺带检查（多一路触发）
-  workflow_dispatch:         # 支持手动触发
+  workflow_dispatch:               # 支持手动触发
 
 permissions:
   contents: write
 
 concurrency:
-  group: kdae-notify
+  group: kdae-notify-b
   cancel-in-progress: false
 
 jobs:
@@ -111,6 +109,6 @@ jobs:
         run: |
           curl -sS -o /dev/null -w '%{http_code}\n' \
             -X POST "https://sctapi.ftqq.com/${{ secrets.SERVERCHAN_SENDKEY }}.send" \
-            --data-urlencode "title=kdae-notify 异常 (${{ github.event_name }})" \
+            --data-urlencode "title=kdae-notify-b 异常 (${{ github.event_name }})" \
             --data-urlencode "desp=workflow 执行失败，请检查:\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             || true

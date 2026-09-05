@@ -37,44 +37,66 @@ jobs:
             echo "GH_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
           fi
 
-      - name: 定位 kdae 分支最新成功 Build (Main) run
-        id: run
+      - name: 取 kdae 分支 head commit (单一事实源, 免疫 runs 列表乱序)
+        id: head
         run: |
-          run_id=$(gh api "repos/$UPSTREAM/actions/runs?branch=kdae&per_page=30" \
-            --jq '.workflow_runs[] | select(.name=="Build (Main)" and .conclusion=="success") | .id' | head -1)
-          if [ -z "$run_id" ]; then echo "未找到成功 Build (Main) run"; exit 1; fi
-          echo "run_id=$run_id" >> $GITHUB_OUTPUT
-          echo "最新 run: $run_id"
+          sha=$(gh api "repos/$UPSTREAM/branches/kdae" --jq .commit.sha)
+          echo "sha=$sha" >> $GITHUB_OUTPUT
+          echo "head commit: $sha"
 
-      - name: 检查是否有新版本 (last-notified.json 去重)
+      - name: CI 全绿判定 (head_sha 反查该 commit 全部 runs)
+        # 与 dae-web CI 门禁同口径 (2026-09-05):
+        #   GREEN   = 该 commit 全部 run completed 且 success, 且 Build (Main) 成功
+        #   PENDING = 有 run 排队/运行中;  RED = 有 failure/cancelled/timed_out
+        #   NOBUILD = 无成功的 Build (Main) (无产物可更)
+        # 不回溯: head 未全绿时保持沉默, 绝不把旧的成功 commit 当"新版本"报告
+        id: ci
+        env:
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+        run: |
+          json=$(gh api "repos/$UPSTREAM/actions/runs?branch=kdae&head_sha=$HEAD_SHA&per_page=50")
+          verdict=$(echo "$json" | jq -r '
+            (.workflow_runs // []) as $r
+            | if ($r | length) == 0 then "NOBUILD"
+              elif any($r[]; .status != "completed") then "PENDING"
+              elif any($r[]; .conclusion != "success") then "RED"
+              elif any($r[]; .name == "Build (Main)" and .conclusion == "success") then "GREEN"
+              else "NOBUILD" end')
+          run_id=$(echo "$json" | jq -r '[.workflow_runs[] | select(.name=="Build (Main)" and .conclusion=="success")][0].id // empty')
+          echo "verdict=$verdict" >> $GITHUB_OUTPUT
+          echo "run_id=$run_id" >> $GITHUB_OUTPUT
+          echo "CI 判定: $verdict (build_run_id=$run_id)"
+
+      - name: 检查是否有新版本 (仅全绿通知, last-notified.json 去重)
         id: check
         env:
-          RUN_ID: ${{ steps.run.outputs.run_id }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          VERDICT: ${{ steps.ci.outputs.verdict }}
         run: |
-          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
-          echo "sha=$sha" >> $GITHUB_OUTPUT
-          last=""
-          if [ -f last-notified.json ]; then
-            last=$(jq -r .source_sha last-notified.json)
-          fi
-          if [ "$last" = "$sha" ]; then
-            echo "无新版本 (已通知 $sha), 跳过"
+          last=$(jq -r .source_sha last-notified.json 2>/dev/null || true)
+          if [ "$VERDICT" != "GREEN" ]; then
+            echo "head $HEAD_SHA CI 判定=$VERDICT, 未全绿不通知 (不回溯旧 commit)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          elif [ "$last" = "$HEAD_SHA" ]; then
+            echo "无新版本 (已通知 $HEAD_SHA), 跳过"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
-            echo "有新版本: ${last:-<none>} -> $sha"
+            echo "有新版本(全绿): ${last:-none} -> $HEAD_SHA"
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Server 酱通知 + 记录 last-notified.json
         if: steps.check.outputs.skip != 'true'
         env:
-          RUN_ID: ${{ steps.run.outputs.run_id }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          RUN_ID: ${{ steps.ci.outputs.run_id }}
         run: |
-          sha=$(gh api "repos/$UPSTREAM/actions/runs/$RUN_ID" --jq .head_sha)
+          sha=$HEAD_SHA
           cm=$(gh api "repos/$UPSTREAM/commits/$sha" --jq '.commit.message' | sed 's/\r$//')
-          title="kdae 上游新版本: ${sha:0:8}"
+          title="kdae 上游新版本: ${sha:0:8} (CI 全绿)"
           desp=$(cat <<EOF
           上游: olicesx/dae@${sha:0:12}
+          CI 判定: GREEN (head commit 全部 workflow 通过, 可安全更新)
           Commit: https://github.com/$UPSTREAM/commit/$sha
           CI Run: https://github.com/$UPSTREAM/actions/runs/$RUN_ID
           检测时间: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
@@ -94,6 +116,7 @@ jobs:
             "source_repo": "$UPSTREAM",
             "source_branch": "kdae",
             "source_sha": "$sha",
+            "ci_verdict": "GREEN",
             "run_id": $RUN_ID,
             "notified_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           }
